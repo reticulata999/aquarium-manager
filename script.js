@@ -383,7 +383,50 @@ function renderTankContents() {
         item.quantity +
         (item.memo ? "｜" + item.memo : "");
 
-      const deleteButton = document.createElement("button");
+      const editButton = document.createElement("button");
+editButton.type = "button";
+editButton.textContent = "編集";
+
+editButton.addEventListener("click", async function() {
+  const newName = prompt("名前を入力してください", item.name);
+  if (newName === null) return;
+
+  const trimmedName = newName.trim();
+  if (!trimmedName) {
+    alert("名前を入力してください。");
+    return;
+  }
+
+  const newQuantity = prompt("数量を入力してください", item.quantity);
+  if (newQuantity === null) return;
+
+  const count = Number(newQuantity);
+  if (!Number.isInteger(count) || count < 1) {
+    alert("数量は1以上の整数にしてください。");
+    return;
+  }
+
+  const newMemo = prompt("メモを入力してください", item.memo || "");
+  if (newMemo === null) return;
+
+  const { error } = await supabaseClient
+    .from("tank_contents")
+    .update({
+      name: trimmedName,
+      quantity: count,
+      memo: newMemo.trim()
+    })
+    .eq("id", item.id);
+
+  if (error) {
+    alert("編集エラー：" + error.message);
+    return;
+  }
+
+  await loadTankContents();
+});
+
+        const deleteButton = document.createElement("button");
       deleteButton.type = "button";
       deleteButton.textContent = "削除";
 
@@ -403,7 +446,7 @@ function renderTankContents() {
         await loadTankContents();
       });
 
-      row.append(text, deleteButton);
+      row.append(text, editButton, deleteButton);
       section.appendChild(row);
     });
 
