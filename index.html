@@ -15,41 +15,42 @@
   </header>
 
   <main>
-    <section class="panel">
-      <h2>水槽を追加</h2>
-
-      <form id="tankForm">
-        <input
-          id="tankName"
-          type="text"
-          placeholder="水槽名（例：25cmキューブ）"
-          required
-        >
-
-        <input
-          id="tankVolume"
-          type="number"
-          min="0.1"
-          step="0.1"
-          placeholder="水量（L）"
-          required
-        >
-
-        <button type="submit">水槽を登録</button>
+    <section id="authPanel" class="panel">
+      <h2>ログイン・新規登録</h2>
+      <form id="authForm">
+        <input id="email" type="email" placeholder="メールアドレス" required>
+        <input id="password" type="password" placeholder="パスワード（6文字以上）" minlength="6" required>
+        <button type="submit">ログイン</button>
       </form>
+      <button id="signUpButton" type="button">新規登録</button>
+      <p id="authMessage"></p>
     </section>
 
-    <section>
-      <h2>登録済みの水槽</h2>
-      <div id="tankList" class="tank-list"></div>
-    </section>
+    <section id="appPanel" hidden>
+      <button id="logoutButton" type="button">ログアウト</button>
 
-    <section class="panel">
-      <h2>水換え履歴</h2>
-      <div id="historyList"></div>
+      <section class="panel">
+        <h2>水槽を追加</h2>
+        <form id="tankForm">
+          <input id="tankName" type="text" placeholder="水槽名（例：25cmキューブ）" required>
+          <input id="tankVolume" type="number" min="0.1" step="0.1" placeholder="水量（L）" required>
+          <button type="submit">水槽を登録</button>
+        </form>
+      </section>
+
+      <section>
+        <h2>登録済みの水槽</h2>
+        <div id="tankList" class="tank-list"></div>
+      </section>
+
+      <section class="panel">
+        <h2>水換え履歴</h2>
+        <div id="historyList"></div>
+      </section>
     </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="script.js"></script>
 </body>
 </html>
