@@ -407,6 +407,108 @@ async function loadTankContents() {
   renderTankContents();
 }
 
+// ==================================
+// 水槽データのAI自動分析
+// ==================================
+
+async function analyzeTank(tank, resultArea, button) {
+  if (!currentUser) {
+    alert("ログインしてください。");
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "分析中...";
+
+  resultArea.textContent = "AIが水槽データを分析しています...";
+
+  try {
+    // この水槽の構成データ
+    const contents = tankContents.filter(function(item) {
+      return item.tank_id === tank.id;
+    });
+
+    // この水槽の水換え履歴（直近10件）
+    const recentHistory = history
+      .filter(function(record) {
+        return record.tank_id === tank.id;
+      })
+      .slice(0, 10);
+
+    // AIに渡す水槽データ
+    const tankData = {
+      水槽名: tank.name,
+      水量: tank.volume + " L",
+
+      登録済み構成: contents.map(function(item) {
+        return {
+          分類: item.category,
+          名前: item.name,
+          数量: item.quantity,
+          メモ: item.memo || "なし"
+        };
+      }),
+
+      直近の水換え履歴: recentHistory.map(function(record) {
+        return {
+          日時: new Date(record.changed_at).toLocaleString("ja-JP"),
+          換水量: record.amount + " L"
+        };
+      })
+    };
+
+    const message =
+      "以下はユーザーが登録した水槽データです。\n\n" +
+      JSON.stringify(tankData, null, 2) +
+      "\n\nこの水槽の飼育環境を分析してください。\n" +
+      "次の項目を中心に、具体的かつ簡潔に回答してください。\n\n" +
+      "1. 生体数と飼育密度\n" +
+      "2. 生体同士の混泳相性\n" +
+      "3. 水草・機材・底床を含めた飼育環境\n" +
+      "4. 現在の情報から確認できるリスク\n" +
+      "5. 改善する場合の優先順位\n\n" +
+      "重要なルール：\n" +
+      "・登録されていない水質や水温を推測しない。\n" +
+      "・データ不足の場合は、その旨を明記する。\n" +
+      "・写真や実測値がない場合、状態を断定しない。\n" +
+      "・不要な機材や用品の購入を安易に勧めない。\n" +
+      "・事実と推測を区別する。\n" +
+      "・日本語で結論から簡潔に回答する。";
+
+    // 既存のAI機能を利用
+    const { data, error } =
+      await supabaseClient.functions.invoke(
+        "aquarium-ai",
+        {
+          body: {
+            message: message
+          }
+        }
+      );
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data || !data.answer) {
+      throw new Error(
+        data?.error || "AIから回答を取得できませんでした。"
+      );
+    }
+
+    resultArea.textContent = data.answer;
+
+  } catch (error) {
+    console.error("水槽分析エラー:", error);
+
+    resultArea.textContent =
+      "分析に失敗しました：" + error.message;
+
+  } finally {
+    button.disabled = false;
+    button.textContent = "この水槽を再分析";
+  }
+}
 
 // ----------------------------------
 // 構成データ表示
@@ -429,11 +531,41 @@ function renderTankContents() {
 
     section.replaceChildren();
 
-    // 見出し
-    const heading = document.createElement("h4");
-    heading.textContent = "水槽内の構成";
+    
+// 見出し
+const heading = document.createElement("h4");
+heading.textContent = "水槽内の構成";
 
-    section.appendChild(heading);
+section.appendChild(heading);
+
+// ==================================
+// AI分析ボタン
+// ==================================
+
+const analyzeButton = document.createElement("button");
+
+analyzeButton.type = "button";
+analyzeButton.textContent = "この水槽をAI分析";
+
+const analysisResult = document.createElement("div");
+
+analysisResult.className = "tank-analysis-result";
+analysisResult.style.marginTop = "12px";
+analysisResult.style.padding = "12px";
+analysisResult.style.background = "#f2f2f2";
+analysisResult.style.borderRadius = "8px";
+analysisResult.style.whiteSpace = "pre-wrap";
+analysisResult.style.lineHeight = "1.7";
+
+analyzeButton.addEventListener("click", function() {
+  analyzeTank(tank, analysisResult, analyzeButton);
+});
+
+section.append(
+  analyzeButton,
+  analysisResult
+);
+
 
     // この水槽の構成だけ取得
     const contents = tankContents.filter(function(item) {
