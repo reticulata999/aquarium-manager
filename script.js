@@ -19,7 +19,22 @@ let tanks = [];
 let history = [];
 let tankContents = [];
 let tankPhotos = [];
+let tankContentLogs = [];
 let currentUser = null;
+
+
+// ==================================
+// 共通処理
+// ==================================
+
+// 水槽カードを取得
+function getTankCard(tankId) {
+  return Array.from(
+    document.querySelectorAll(".tank-card")
+  ).find(function(card) {
+    return card.dataset.tankId === tankId;
+  });
+}
 
 
 // ==================================
@@ -37,6 +52,7 @@ async function handleSession(session) {
     appPanel.hidden = false;
 
     await loadData();
+
   } else {
     authPanel.hidden = false;
     appPanel.hidden = true;
@@ -44,6 +60,8 @@ async function handleSession(session) {
     tanks = [];
     history = [];
     tankContents = [];
+    tankPhotos = [];
+    tankContentLogs = [];
   }
 }
 
@@ -52,7 +70,7 @@ async function handleSession(session) {
 supabaseClient.auth.onAuthStateChange(
   function(event, session) {
     handleSession(session).catch(function(error) {
-      console.error(error);
+      console.error("ログイン状態の処理エラー:", error);
     });
   }
 );
@@ -60,7 +78,9 @@ supabaseClient.auth.onAuthStateChange(
 
 // 最初のログイン状態を確認
 supabaseClient.auth.getSession().then(function(result) {
-  handleSession(result.data.session);
+  handleSession(result.data.session).catch(function(error) {
+    console.error("初期ログイン確認エラー:", error);
+  });
 });
 
 
@@ -149,7 +169,7 @@ document.getElementById("logoutButton").addEventListener(
 async function loadData() {
   if (!currentUser) return;
 
-  // 水槽データ取得
+  // 水槽データ
   const tankResult = await supabaseClient
     .from("tanks")
     .select("*")
@@ -159,7 +179,7 @@ async function loadData() {
     throw tankResult.error;
   }
 
-  // 水換え履歴取得
+  // 水換え履歴
   const historyResult = await supabaseClient
     .from("water_change_logs")
     .select("*")
@@ -172,10 +192,13 @@ async function loadData() {
   tanks = tankResult.data || [];
   history = historyResult.data || [];
 
+  // 基本画面を表示
   render();
 
+  // 関連データを読み込み
   await loadTankContents();
   await loadTankPhotos();
+  await loadTankContentLogs();
 }
 
 
@@ -201,21 +224,28 @@ function render() {
 
   tanks.forEach(function(tank) {
     const card = document.createElement("div");
+
     card.className = "tank-card";
     card.dataset.tankId = tank.id;
 
+    // 水槽名
     const title = document.createElement("h3");
     title.textContent = tank.name;
 
+    // 水量
     const volume = document.createElement("p");
     volume.textContent = "水量：約 " + tank.volume + " L";
 
 
+    // ----------------------------------
     // 水換えフォーム
+    // ----------------------------------
+
     const form = document.createElement("form");
     form.className = "water-form";
 
     const input = document.createElement("input");
+
     input.type = "number";
     input.min = "0.1";
     input.step = "0.1";
@@ -223,19 +253,24 @@ function render() {
     input.required = true;
 
     const button = document.createElement("button");
+
     button.type = "submit";
     button.textContent = "水換えを記録";
 
     form.append(input, button);
 
 
+    // ----------------------------------
     // 水換え記録処理
+    // ----------------------------------
+
     form.addEventListener("submit", async function(event) {
       event.preventDefault();
 
       const amount = Number(input.value);
 
       if (!Number.isFinite(amount) || amount <= 0) {
+        alert("正しい換水量を入力してください。");
         return;
       }
 
@@ -256,11 +291,11 @@ function render() {
 
       if (error) {
         alert("記録エラー：" + error.message);
-      } else {
-        await loadData();
+        button.disabled = false;
+        return;
       }
 
-      button.disabled = false;
+      await loadData();
     });
 
 
@@ -316,6 +351,7 @@ document.getElementById("tankForm").addEventListener(
     );
 
     if (!name || !Number.isFinite(volume) || volume <= 0) {
+      alert("水槽名と正しい水量を入力してください。");
       return;
     }
 
@@ -332,12 +368,13 @@ document.getElementById("tankForm").addEventListener(
 
     if (error) {
       alert("登録エラー：" + error.message);
-    } else {
-      event.target.reset();
-      await loadData();
+      button.disabled = false;
+      return;
     }
 
-    button.disabled = false;
+    event.target.reset();
+
+    await loadData();
   }
 );
 
@@ -377,16 +414,9 @@ async function loadTankContents() {
 
 function renderTankContents() {
   tanks.forEach(function(tank) {
-
-    // 対象の水槽カードを取得
-    const card = Array.from(
-      document.querySelectorAll(".tank-card")
-    ).find(function(element) {
-      return element.dataset.tankId === tank.id;
-    });
+    const card = getTankCard(tank.id);
 
     if (!card) return;
-
 
     // 構成表示エリア
     let section = card.querySelector(".contents-section");
@@ -399,19 +429,16 @@ function renderTankContents() {
 
     section.replaceChildren();
 
-
     // 見出し
     const heading = document.createElement("h4");
     heading.textContent = "水槽内の構成";
 
     section.appendChild(heading);
 
-
-    // この水槽に登録されている構成
+    // この水槽の構成だけ取得
     const contents = tankContents.filter(function(item) {
       return item.tank_id === tank.id;
     });
-
 
     // 登録データがない場合
     if (contents.length === 0) {
@@ -423,7 +450,7 @@ function renderTankContents() {
 
 
     // ----------------------------------
-    // 登録済み構成の表示
+    // 登録済み構成
     // ----------------------------------
 
     contents.forEach(function(item) {
@@ -464,7 +491,6 @@ function renderTankContents() {
           return;
         }
 
-
         // 数量
         const newQuantity = prompt(
           "数量を入力してください",
@@ -480,7 +506,6 @@ function renderTankContents() {
           return;
         }
 
-
         // メモ
         const newMemo = prompt(
           "メモを入力してください",
@@ -489,6 +514,7 @@ function renderTankContents() {
 
         if (newMemo === null) return;
 
+        const trimmedMemo = newMemo.trim();
 
         // データ更新
         const { error } = await supabaseClient
@@ -496,7 +522,7 @@ function renderTankContents() {
           .update({
             name: trimmedName,
             quantity: count,
-            memo: newMemo.trim()
+            memo: trimmedMemo
           })
           .eq("id", item.id)
           .eq("user_id", currentUser.id);
@@ -505,6 +531,22 @@ function renderTankContents() {
           alert("編集エラー：" + error.message);
           return;
         }
+
+        // 変更履歴を保存
+        await saveTankContentLog({
+          tank_id: tank.id,
+          action: "編集",
+          category: item.category,
+
+          old_name: item.name,
+          new_name: trimmedName,
+
+          old_quantity: item.quantity,
+          new_quantity: count,
+
+          old_memo: item.memo || "",
+          new_memo: trimmedMemo
+        });
 
         await loadTankContents();
       });
@@ -536,13 +578,22 @@ function renderTankContents() {
           return;
         }
 
+        // 変更履歴を保存
+        await saveTankContentLog({
+          tank_id: tank.id,
+          action: "削除",
+          category: item.category,
+
+          old_name: item.name,
+          old_quantity: item.quantity,
+          old_memo: item.memo || ""
+        });
+
         await loadTankContents();
       });
 
 
-      // 表示
       row.append(text, editButton, deleteButton);
-
       section.appendChild(row);
     });
 
@@ -552,7 +603,6 @@ function renderTankContents() {
     // ----------------------------------
 
     const form = document.createElement("form");
-
 
     // カテゴリ
     const category = document.createElement("select");
@@ -568,13 +618,11 @@ function renderTankContents() {
       }
     );
 
-
     // 名前
     const name = document.createElement("input");
 
     name.placeholder = "名前";
     name.required = true;
-
 
     // 数量
     const quantity = document.createElement("input");
@@ -585,19 +633,16 @@ function renderTankContents() {
     quantity.value = "1";
     quantity.required = true;
 
-
     // メモ
     const memo = document.createElement("input");
 
     memo.placeholder = "メモ（任意）";
-
 
     // 登録ボタン
     const button = document.createElement("button");
 
     button.type = "submit";
     button.textContent = "構成を追加";
-
 
     form.append(category, name, quantity, memo, button);
 
@@ -611,6 +656,7 @@ function renderTankContents() {
 
       const itemName = name.value.trim();
       const count = Number(quantity.value);
+      const itemMemo = memo.value.trim();
 
       if (!itemName) {
         alert("名前を入力してください。");
@@ -632,26 +678,38 @@ function renderTankContents() {
           category: category.value,
           name: itemName,
           quantity: count,
-          memo: memo.value.trim()
+          memo: itemMemo
         });
 
       if (error) {
         alert("登録エラー：" + error.message);
-      } else {
-        await loadTankContents();
+        button.disabled = false;
+        return;
       }
 
-      button.disabled = false;
-    });
+      // 変更履歴を保存
+      await saveTankContentLog({
+        tank_id: tank.id,
+        action: "追加",
+        category: category.value,
 
+        new_name: itemName,
+        new_quantity: count,
+        new_memo: itemMemo
+      });
+
+      await loadTankContents();
+    });
 
     section.appendChild(form);
   });
 }
 
+
 // ==================================
 // 水槽写真管理
 // ==================================
+
 
 // ----------------------------------
 // 写真データ読み込み
@@ -683,12 +741,7 @@ async function loadTankPhotos() {
 
 async function renderTankPhotos() {
   for (const tank of tanks) {
-
-    const card = Array.from(
-      document.querySelectorAll(".tank-card")
-    ).find(function(element) {
-      return element.dataset.tankId === tank.id;
-    });
+    const card = getTankCard(tank.id);
 
     if (!card) continue;
 
@@ -703,6 +756,7 @@ async function renderTankPhotos() {
 
     section.replaceChildren();
 
+    // 見出し
     const heading = document.createElement("h4");
     heading.textContent = "水槽写真";
 
@@ -716,13 +770,18 @@ async function renderTankPhotos() {
     if (photos.length === 0) {
       const empty = document.createElement("p");
       empty.textContent = "まだ写真はありません。";
+
       section.appendChild(empty);
     }
 
-    // 写真一覧
-    for (const photo of photos) {
 
+    // ----------------------------------
+    // 写真一覧
+    // ----------------------------------
+
+    for (const photo of photos) {
       const photoItem = document.createElement("div");
+
       photoItem.style.marginBottom = "15px";
 
       // 非公開写真の一時URLを取得
@@ -736,6 +795,7 @@ async function renderTankPhotos() {
         continue;
       }
 
+      // 写真
       const image = document.createElement("img");
 
       image.src = data.signedUrl;
@@ -753,7 +813,11 @@ async function renderTankPhotos() {
         photo.created_at
       ).toLocaleString("ja-JP");
 
-      // 削除ボタン
+
+      // ----------------------------------
+      // 写真削除ボタン
+      // ----------------------------------
+
       const deleteButton = document.createElement("button");
 
       deleteButton.type = "button";
@@ -798,6 +862,7 @@ async function renderTankPhotos() {
       section.appendChild(photoItem);
     }
 
+
     // ----------------------------------
     // 写真登録フォーム
     // ----------------------------------
@@ -817,6 +882,7 @@ async function renderTankPhotos() {
     uploadButton.textContent = "写真を登録";
 
     form.append(fileInput, uploadButton);
+
 
     // ----------------------------------
     // 写真アップロード処理
@@ -852,9 +918,7 @@ async function renderTankPhotos() {
         }
 
         // ファイル拡張子
-        let extension = file.name.split(".").pop();
-
-        extension = extension.toLowerCase();
+        let extension = file.name.split(".").pop().toLowerCase();
 
         if (!/^[a-z0-9]+$/.test(extension)) {
           extension = "jpg";
@@ -921,4 +985,180 @@ async function renderTankPhotos() {
 
     section.appendChild(form);
   }
+}
+
+
+// ==================================
+// 水槽内構成の変更履歴
+// ==================================
+
+
+// ----------------------------------
+// 変更履歴読み込み
+// ----------------------------------
+
+async function loadTankContentLogs() {
+  if (!currentUser) return;
+
+  const { data, error } = await supabaseClient
+    .from("tank_content_logs")
+    .select("*")
+    .order("changed_at", { ascending: false });
+
+  if (error) {
+    console.error("変更履歴読み込みエラー:", error);
+    alert("変更履歴の読み込みに失敗しました。");
+    return;
+  }
+
+  tankContentLogs = data || [];
+
+  renderTankContentLogs();
+}
+
+
+// ----------------------------------
+// 変更履歴表示
+// ----------------------------------
+
+function renderTankContentLogs() {
+  tanks.forEach(function(tank) {
+    const card = getTankCard(tank.id);
+
+    if (!card) return;
+
+    // 履歴表示エリア
+    let section = card.querySelector(".content-logs-section");
+
+    if (!section) {
+      section = document.createElement("div");
+      section.className = "content-logs-section";
+      card.appendChild(section);
+    }
+
+    section.replaceChildren();
+
+    // 見出し
+    const heading = document.createElement("h4");
+
+    heading.textContent = "構成の変更履歴";
+
+    section.appendChild(heading);
+
+    // この水槽の履歴だけ取得
+    const logs = tankContentLogs.filter(function(log) {
+      return log.tank_id === tank.id;
+    });
+
+    if (logs.length === 0) {
+      const empty = document.createElement("p");
+
+      empty.textContent = "まだ変更履歴はありません。";
+
+      section.appendChild(empty);
+      return;
+    }
+
+
+    // ----------------------------------
+    // 履歴一覧
+    // ----------------------------------
+
+    logs.forEach(function(log) {
+      const item = document.createElement("div");
+
+      item.className = "history-item";
+
+      // 日時
+      const dateText = document.createElement("p");
+
+      dateText.textContent = new Date(
+        log.changed_at
+      ).toLocaleString("ja-JP");
+
+      // 変更内容
+      const detail = document.createElement("p");
+
+      let description = log.action + "｜" + log.category;
+
+      if (log.action === "追加") {
+        description +=
+          "｜" + log.new_name +
+          " × " + log.new_quantity;
+      }
+
+      if (log.action === "削除") {
+        description +=
+          "｜" + log.old_name +
+          " × " + log.old_quantity;
+      }
+
+      if (log.action === "編集") {
+        description +=
+          "｜" + log.old_name +
+          " → " + log.new_name;
+
+        if (log.old_quantity !== log.new_quantity) {
+          description +=
+            "｜数量 " +
+            log.old_quantity +
+            " → " +
+            log.new_quantity;
+        }
+
+        if (log.old_memo !== log.new_memo) {
+          description +=
+            "｜メモを変更";
+        }
+      }
+
+      detail.textContent = description;
+
+      item.append(dateText, detail);
+      section.appendChild(item);
+    });
+  });
+}
+
+
+// ----------------------------------
+// 変更履歴保存
+// ----------------------------------
+
+async function saveTankContentLog(logData) {
+  if (!currentUser) return false;
+
+  const { error } = await supabaseClient
+    .from("tank_content_logs")
+    .insert({
+      tank_id: logData.tank_id,
+      user_id: currentUser.id,
+
+      action: logData.action,
+      category: logData.category,
+
+      old_name: logData.old_name ?? null,
+      new_name: logData.new_name ?? null,
+
+      old_quantity: logData.old_quantity ?? null,
+      new_quantity: logData.new_quantity ?? null,
+
+      old_memo: logData.old_memo ?? null,
+      new_memo: logData.new_memo ?? null
+    });
+
+  if (error) {
+    console.error("変更履歴保存エラー:", error);
+
+    alert(
+      "構成の変更は完了しましたが、変更履歴の保存に失敗しました：" +
+      error.message
+    );
+
+    return false;
+  }
+
+  await loadTankContentLogs();
+
+  return true;
 }
