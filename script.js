@@ -18,6 +18,7 @@ const supabaseClient = window.supabase.createClient(
 let tanks = [];
 let history = [];
 let tankContents = [];
+let tankPhotos = [];
 let currentUser = null;
 
 
@@ -174,6 +175,7 @@ async function loadData() {
   render();
 
   await loadTankContents();
+  await loadTankPhotos();
 }
 
 
@@ -645,4 +647,278 @@ function renderTankContents() {
 
     section.appendChild(form);
   });
+}
+
+// ==================================
+// 水槽写真管理
+// ==================================
+
+// ----------------------------------
+// 写真データ読み込み
+// ----------------------------------
+
+async function loadTankPhotos() {
+  if (!currentUser) return;
+
+  const { data, error } = await supabaseClient
+    .from("tank_photos")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("写真読み込みエラー:", error);
+    alert("写真データの読み込みに失敗しました。");
+    return;
+  }
+
+  tankPhotos = data || [];
+
+  await renderTankPhotos();
+}
+
+
+// ----------------------------------
+// 写真表示
+// ----------------------------------
+
+async function renderTankPhotos() {
+  for (const tank of tanks) {
+
+    const card = Array.from(
+      document.querySelectorAll(".tank-card")
+    ).find(function(element) {
+      return element.dataset.tankId === tank.id;
+    });
+
+    if (!card) continue;
+
+    // 写真表示エリア
+    let section = card.querySelector(".photos-section");
+
+    if (!section) {
+      section = document.createElement("div");
+      section.className = "photos-section";
+      card.appendChild(section);
+    }
+
+    section.replaceChildren();
+
+    const heading = document.createElement("h4");
+    heading.textContent = "水槽写真";
+
+    section.appendChild(heading);
+
+    // この水槽の写真だけ取得
+    const photos = tankPhotos.filter(function(photo) {
+      return photo.tank_id === tank.id;
+    });
+
+    if (photos.length === 0) {
+      const empty = document.createElement("p");
+      empty.textContent = "まだ写真はありません。";
+      section.appendChild(empty);
+    }
+
+    // 写真一覧
+    for (const photo of photos) {
+
+      const photoItem = document.createElement("div");
+      photoItem.style.marginBottom = "15px";
+
+      // 非公開写真の一時URLを取得
+      const { data, error } = await supabaseClient
+        .storage
+        .from("tank-photos")
+        .createSignedUrl(photo.storage_path, 3600);
+
+      if (error) {
+        console.error("写真URL取得エラー:", error);
+        continue;
+      }
+
+      const image = document.createElement("img");
+
+      image.src = data.signedUrl;
+      image.alt = tank.name + "の写真";
+      image.style.width = "100%";
+      image.style.maxWidth = "400px";
+      image.style.height = "auto";
+      image.style.display = "block";
+      image.style.borderRadius = "8px";
+
+      // 登録日時
+      const date = document.createElement("p");
+
+      date.textContent = new Date(
+        photo.created_at
+      ).toLocaleString("ja-JP");
+
+      // 削除ボタン
+      const deleteButton = document.createElement("button");
+
+      deleteButton.type = "button";
+      deleteButton.textContent = "写真を削除";
+
+      deleteButton.addEventListener("click", async function() {
+
+        if (!confirm("この写真を削除しますか？")) {
+          return;
+        }
+
+        deleteButton.disabled = true;
+
+        // Storageから写真を削除
+        const { error: storageError } = await supabaseClient
+          .storage
+          .from("tank-photos")
+          .remove([photo.storage_path]);
+
+        if (storageError) {
+          alert("写真削除エラー：" + storageError.message);
+          deleteButton.disabled = false;
+          return;
+        }
+
+        // データベースから情報を削除
+        const { error: dbError } = await supabaseClient
+          .from("tank_photos")
+          .delete()
+          .eq("id", photo.id)
+          .eq("user_id", currentUser.id);
+
+        if (dbError) {
+          alert("写真情報の削除エラー：" + dbError.message);
+          return;
+        }
+
+        await loadTankPhotos();
+      });
+
+      photoItem.append(image, date, deleteButton);
+      section.appendChild(photoItem);
+    }
+
+    // ----------------------------------
+    // 写真登録フォーム
+    // ----------------------------------
+
+    const form = document.createElement("form");
+
+    const fileInput = document.createElement("input");
+
+    fileInput.type = "file";
+    fileInput.accept = "image/*";
+    fileInput.multiple = true;
+    fileInput.required = true;
+
+    const uploadButton = document.createElement("button");
+
+    uploadButton.type = "submit";
+    uploadButton.textContent = "写真を登録";
+
+    form.append(fileInput, uploadButton);
+
+    // ----------------------------------
+    // 写真アップロード処理
+    // ----------------------------------
+
+    form.addEventListener("submit", async function(event) {
+      event.preventDefault();
+
+      const files = Array.from(fileInput.files);
+
+      if (files.length === 0) {
+        alert("写真を選択してください。");
+        return;
+      }
+
+      uploadButton.disabled = true;
+
+      let successCount = 0;
+      const errors = [];
+
+      for (const file of files) {
+
+        // 画像ファイルか確認
+        if (!file.type.startsWith("image/")) {
+          errors.push(file.name + "：画像ファイルではありません。");
+          continue;
+        }
+
+        // 10MB制限
+        if (file.size > 10 * 1024 * 1024) {
+          errors.push(file.name + "：10MBを超えています。");
+          continue;
+        }
+
+        // ファイル拡張子
+        let extension = file.name.split(".").pop();
+
+        extension = extension.toLowerCase();
+
+        if (!/^[a-z0-9]+$/.test(extension)) {
+          extension = "jpg";
+        }
+
+        // 保存先のパス
+        const filePath =
+          currentUser.id + "/" +
+          tank.id + "/" +
+          crypto.randomUUID() + "." +
+          extension;
+
+        // Storageへアップロード
+        const { error: uploadError } = await supabaseClient
+          .storage
+          .from("tank-photos")
+          .upload(filePath, file, {
+            cacheControl: "3600",
+            upsert: false
+          });
+
+        if (uploadError) {
+          errors.push(file.name + "：" + uploadError.message);
+          continue;
+        }
+
+        // データベースに写真情報を登録
+        const { error: insertError } = await supabaseClient
+          .from("tank_photos")
+          .insert({
+            tank_id: tank.id,
+            user_id: currentUser.id,
+            storage_path: filePath
+          });
+
+        if (insertError) {
+
+          // DB登録に失敗した場合は写真も削除
+          await supabaseClient
+            .storage
+            .from("tank-photos")
+            .remove([filePath]);
+
+          errors.push(file.name + "：" + insertError.message);
+          continue;
+        }
+
+        successCount++;
+      }
+
+      uploadButton.disabled = false;
+
+      if (errors.length > 0) {
+        alert(
+          successCount + "枚登録しました。\n\n" +
+          errors.join("\n")
+        );
+      } else {
+        alert(successCount + "枚の写真を登録しました。");
+      }
+
+      await loadTankPhotos();
+    });
+
+    section.appendChild(form);
+  }
 }
