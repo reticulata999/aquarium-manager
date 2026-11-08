@@ -1,20 +1,172 @@
 
-// 保存データを読み込む
-let tanks = JSON.parse(
-  localStorage.getItem("aquariumTanks") || "[]"
+// ==================================
+// Supabase接続設定
+// ==================================
+
+const SUPABASE_URL = "https://pxvdsarepglyfrvnzgzu.supabase.co";
+const SUPABASE_KEY = "sb_publishable_yWisvWLBqGWYQ6emlFzoWg_k7SgQ2xQ";
+
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
 );
 
-let history = JSON.parse(
-  localStorage.getItem("aquariumHistory") || "[]"
-);
+// ==================================
+// アプリの基本設定
+// ==================================
 
-// データを保存する関数
-function saveData() {
-  localStorage.setItem("aquariumTanks", JSON.stringify(tanks));
-  localStorage.setItem("aquariumHistory", JSON.stringify(history));
+let tanks = [];
+let history = [];
+let currentUser = null;
+
+// ==================================
+// ログイン状態の管理
+// ==================================
+
+async function handleSession(session) {
+  currentUser = session?.user ?? null;
+
+  const authPanel = document.getElementById("authPanel");
+  const appPanel = document.getElementById("appPanel");
+
+  if (currentUser) {
+    authPanel.hidden = true;
+    appPanel.hidden = false;
+
+    await loadData();
+  } else {
+    authPanel.hidden = false;
+    appPanel.hidden = true;
+
+    tanks = [];
+    history = [];
+  }
 }
 
-// 画面を更新する関数
+// ログイン状態の変化を監視
+supabaseClient.auth.onAuthStateChange(
+  function(event, session) {
+    handleSession(session).catch(function(error) {
+      console.error(error);
+    });
+  }
+);
+
+// 最初のログイン状態を確認
+supabaseClient.auth.getSession().then(function(result) {
+  handleSession(result.data.session);
+});
+
+// ==================================
+// ログイン
+// ==================================
+
+document.getElementById("authForm").addEventListener(
+  "submit",
+  async function(event) {
+    event.preventDefault();
+
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    const message = document.getElementById("authMessage");
+
+    message.textContent = "ログイン中...";
+
+    const { error } = await supabaseClient.auth.signInWithPassword({
+      email: email,
+      password: password
+    });
+
+    if (error) {
+      message.textContent = "ログインエラー：" + error.message;
+    } else {
+      message.textContent = "";
+    }
+  }
+);
+
+// ==================================
+// 新規登録
+// ==================================
+
+document.getElementById("signUpButton").addEventListener(
+  "click",
+  async function() {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    const message = document.getElementById("authMessage");
+
+    if (!email || password.length < 6) {
+      message.textContent =
+        "メールアドレスと6文字以上のパスワードを入力してください。";
+      return;
+    }
+
+    message.textContent = "登録中...";
+
+    const { error } = await supabaseClient.auth.signUp({
+      email: email,
+      password: password
+    });
+
+    if (error) {
+      message.textContent = "登録エラー：" + error.message;
+    } else {
+      message.textContent = "登録しました。ログインしてください。";
+    }
+  }
+);
+
+// ==================================
+// ログアウト
+// ==================================
+
+document.getElementById("logoutButton").addEventListener(
+  "click",
+  async function() {
+    const { error } = await supabaseClient.auth.signOut();
+
+    if (error) {
+      alert("ログアウトエラー：" + error.message);
+    }
+  }
+);
+
+// ==================================
+// データ読み込み
+// ==================================
+
+async function loadData() {
+  if (!currentUser) return;
+
+  const tankResult = await supabaseClient
+    .from("tanks")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  if (tankResult.error) {
+    throw tankResult.error;
+  }
+
+  const historyResult = await supabaseClient
+    .from("water_change_logs")
+    .select("*")
+    .order("changed_at", { ascending: false });
+
+  if (historyResult.error) {
+    throw historyResult.error;
+  }
+
+  tanks = tankResult.data;
+  history = historyResult.data;
+
+  render();
+}
+
+// ==================================
+// 画面表示
+// ==================================
+
 function render() {
   const tankList = document.getElementById("tankList");
   const historyList = document.getElementById("historyList");
@@ -22,7 +174,7 @@ function render() {
   tankList.replaceChildren();
   historyList.replaceChildren();
 
-  // 水槽一覧を表示
+  // 水槽一覧
   if (tanks.length === 0) {
     tankList.textContent = "まだ水槽が登録されていません。";
   }
@@ -53,7 +205,7 @@ function render() {
 
     form.append(input, button);
 
-    form.addEventListener("submit", function(event) {
+    form.addEventListener("submit", async function(event) {
       event.preventDefault();
 
       const amount = Number(input.value);
@@ -67,21 +219,30 @@ function render() {
         return;
       }
 
-      history.unshift({
-        tankName: tank.name,
-        amount: amount,
-        date: new Date().toLocaleString("ja-JP")
-      });
+      button.disabled = true;
 
-      saveData();
-      render();
+      const { error } = await supabaseClient
+        .from("water_change_logs")
+        .insert({
+          tank_id: tank.id,
+          user_id: currentUser.id,
+          amount: amount
+        });
+
+      if (error) {
+        alert("記録エラー：" + error.message);
+      } else {
+        await loadData();
+      }
+
+      button.disabled = false;
     });
 
     card.append(title, volume, form);
     tankList.appendChild(card);
   });
 
-  // 水換え履歴を表示
+  // 水換え履歴
   if (history.length === 0) {
     historyList.textContent = "まだ履歴はありません。";
     return;
@@ -91,22 +252,34 @@ function render() {
     const item = document.createElement("div");
     item.className = "history-item";
 
+    const tank = tanks.find(function(tank) {
+      return tank.id === record.tank_id;
+    });
+
+    const date = new Date(record.changed_at).toLocaleString("ja-JP");
+
     item.textContent =
-      record.date + "｜" +
-      record.tankName + "｜" +
+      date + "｜" +
+      (tank ? tank.name : "不明な水槽") + "｜" +
       record.amount + " L 換水";
 
     historyList.appendChild(item);
   });
 }
 
-// 水槽を登録する
+// ==================================
+// 水槽登録
+// ==================================
+
 document.getElementById("tankForm").addEventListener(
   "submit",
-  function(event) {
+  async function(event) {
     event.preventDefault();
 
+    if (!currentUser) return;
+
     const name = document.getElementById("tankName").value.trim();
+
     const volume = Number(
       document.getElementById("tankVolume").value
     );
@@ -115,18 +288,24 @@ document.getElementById("tankForm").addEventListener(
       return;
     }
 
-    tanks.push({
-      id: Date.now(),
-      name: name,
-      volume: volume
-    });
+    const button = event.target.querySelector("button");
+    button.disabled = true;
 
-    saveData();
-    render();
+    const { error } = await supabaseClient
+      .from("tanks")
+      .insert({
+        user_id: currentUser.id,
+        name: name,
+        volume: volume
+      });
 
-    event.target.reset();
+    if (error) {
+      alert("登録エラー：" + error.message);
+    } else {
+      event.target.reset();
+      await loadData();
+    }
+
+    button.disabled = false;
   }
 );
-
-// 最初の画面を表示
-render();
