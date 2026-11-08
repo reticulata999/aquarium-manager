@@ -1256,35 +1256,15 @@ function setupAiAssistant() {
   photoLabel.textContent = "写真を選択";
   photoLabel.htmlFor = "aiPhotoInput";
   photoLabel.style.display = "inline-block";
-  photoLabel.style.padding = "10px 14px";
+  photoLabel.style.padding = "6px 10px";
   photoLabel.style.marginRight = "8px";
   photoLabel.style.marginBottom = "10px";
   photoLabel.style.border = "1px solid #ccc";
   photoLabel.style.borderRadius = "6px";
   photoLabel.style.cursor = "pointer";
+  photoLabel.style.fontSize = "13px";
 
   photoInput.id = "aiPhotoInput";
-
-  // ==================================
-  // カメラ撮影
-  // ==================================
-
-  const cameraInput = document.createElement("input");
-  cameraInput.type = "file";
-  cameraInput.accept = "image/*";
-  cameraInput.setAttribute("capture", "environment");
-  cameraInput.style.display = "none";
-  cameraInput.id = "aiCameraInput";
-
-  const cameraLabel = document.createElement("label");
-  cameraLabel.textContent = "カメラで撮影";
-  cameraLabel.htmlFor = "aiCameraInput";
-  cameraLabel.style.display = "inline-block";
-  cameraLabel.style.padding = "10px 14px";
-  cameraLabel.style.marginBottom = "10px";
-  cameraLabel.style.border = "1px solid #ccc";
-  cameraLabel.style.borderRadius = "6px";
-  cameraLabel.style.cursor = "pointer";
 
   // ==================================
   // 写真プレビュー
@@ -1325,11 +1305,9 @@ function setupAiAssistant() {
   form.append(
     input,
     photoInput,
-    cameraInput,
     photoLabel,
-    cameraLabel,
     previewArea,
-    button,
+   button,
     status
   );
 
@@ -1417,11 +1395,6 @@ function setupAiAssistant() {
   }
 
   photoInput.addEventListener("change", function() {
-    handleImageSelection(this.files[0]);
-    this.value = "";
-  });
-
-  cameraInput.addEventListener("change", function() {
     handleImageSelection(this.files[0]);
     this.value = "";
   });
@@ -1552,7 +1525,6 @@ function setupAiAssistant() {
     button.disabled = true;
     input.disabled = true;
     photoLabel.style.pointerEvents = "none";
-    cameraLabel.style.pointerEvents = "none";
 
     status.textContent = "AIが回答を作成しています...";
 
@@ -1623,7 +1595,6 @@ function setupAiAssistant() {
       button.disabled = false;
       input.disabled = false;
       photoLabel.style.pointerEvents = "auto";
-      cameraLabel.style.pointerEvents = "auto";
       input.focus();
     }
   });
