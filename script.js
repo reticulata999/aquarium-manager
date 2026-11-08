@@ -1021,6 +1021,11 @@ async function loadTankContentLogs() {
 // 変更履歴表示
 // ----------------------------------
 
+
+// ----------------------------------
+// 変更履歴表示
+// ----------------------------------
+
 function renderTankContentLogs() {
   tanks.forEach(function(tank) {
     const card = getTankCard(tank.id);
@@ -1038,32 +1043,48 @@ function renderTankContentLogs() {
 
     section.replaceChildren();
 
-    // 見出し
-    const heading = document.createElement("h4");
-
-    heading.textContent = "構成の変更履歴";
-
-    section.appendChild(heading);
-
     // この水槽の履歴だけ取得
     const logs = tankContentLogs.filter(function(log) {
       return log.tank_id === tank.id;
     });
 
+    // 開閉ボタン
+    const toggleButton = document.createElement("button");
+
+    toggleButton.type = "button";
+    toggleButton.textContent = "構成の変更履歴 ▼";
+
+    toggleButton.style.width = "100%";
+    toggleButton.style.textAlign = "left";
+
+    // 履歴一覧エリア
+    const logList = document.createElement("div");
+
+    logList.style.display = "none";
+    logList.style.marginTop = "10px";
+
+    // ボタンで開閉
+    toggleButton.addEventListener("click", function() {
+      const isClosed = logList.style.display === "none";
+
+      logList.style.display = isClosed ? "block" : "none";
+
+      toggleButton.textContent = isClosed
+        ? "構成の変更履歴 ▲"
+        : "構成の変更履歴 ▼";
+    });
+
+    section.append(toggleButton, logList);
+
+    // 履歴がない場合
     if (logs.length === 0) {
       const empty = document.createElement("p");
-
       empty.textContent = "まだ変更履歴はありません。";
-
-      section.appendChild(empty);
+      logList.appendChild(empty);
       return;
     }
 
-
-    // ----------------------------------
     // 履歴一覧
-    // ----------------------------------
-
     logs.forEach(function(log) {
       const item = document.createElement("div");
 
@@ -1107,18 +1128,18 @@ function renderTankContentLogs() {
         }
 
         if (log.old_memo !== log.new_memo) {
-          description +=
-            "｜メモを変更";
+          description += "｜メモを変更";
         }
       }
 
       detail.textContent = description;
 
       item.append(dateText, detail);
-      section.appendChild(item);
+      logList.appendChild(item);
     });
   });
 }
+
 
 
 // ----------------------------------
