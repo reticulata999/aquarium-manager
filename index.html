@@ -1,0 +1,55 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aquarium Manager</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header>
+    <h1>Aquarium Manager</h1>
+    <p>水槽管理ダッシュボード</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>水槽を追加</h2>
+
+      <form id="tankForm">
+        <input
+          id="tankName"
+          type="text"
+          placeholder="水槽名（例：25cmキューブ）"
+          required
+        >
+
+        <input
+          id="tankVolume"
+          type="number"
+          min="0.1"
+          step="0.1"
+          placeholder="水量（L）"
+          required
+        >
+
+        <button type="submit">水槽を登録</button>
+      </form>
+    </section>
+
+    <section>
+      <h2>登録済みの水槽</h2>
+      <div id="tankList" class="tank-list"></div>
+    </section>
+
+    <section class="panel">
+      <h2>水換え履歴</h2>
+      <div id="historyList"></div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

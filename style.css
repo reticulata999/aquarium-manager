@@ -1,0 +1,139 @@
+
+body {
+  margin: 0;
+  padding: 30px;
+  background: #eef3ef;
+  font-family: sans-serif;
+  color: #263b32;
+}
+
+header {
+  margin-bottom: 30px;
+}
+
+h1 {
+  color: #286047;
+}
+
+main {
+  max-width: 850px;
+  margin: auto;
+}
+
+h2 {
+  font-size: 19px;
+  margin-bottom: 16px;
+}
+
+.panel,
+.tank-card {
+  background: white;
+  padding: 22px;
+  border-radius: 14px;
+  margin-bottom: 22px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+input {
+  padding: 12px;
+  border: 1px solid #d5dfd8;
+  border-radius: 8px;
+  font-size: 14px;
+  flex: 1;
+  min-width: 130px;
+}
+
+button {
+  background: #286047;
+  color: white;
+  border: none;
+  padding: 12px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #397b5c;
+}
+
+.tank-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 15px;
+}
+
+.tank-card h3 {
+  margin-top: 0;
+  color: #286047;
+}
+
+.tank-card p {
+  color: #607168;
+}
+
+.water-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 15px;
+}
+
+.water-form input {
+  width: 90px;
+  flex: 1;
+}
+
+.history-item {
+  padding: 12px 0;
+  border-bottom: 1px solid #e5ebe6;
+  font-size: 14px;
+}
+
+.empty {
+  color: #89968e;
+  font-size: 14px;
+}
+
+@media (max-width: 500px) {
+  body {
+    padding: 18px;
+  }
+
+  form {
+    flex-direction: column;
+  }
+
+  form input,
+  form button {
+    box-sizing: border-box;
+    width: 100%;
+  }
+}
+
+/* スマートフォン対応 */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 16px;
+}
+
+input,
+button {
+  font-size: 16px;
+  max-width: 100%;
+}
+
+.container {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+}
