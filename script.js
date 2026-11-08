@@ -1185,8 +1185,9 @@ async function saveTankContentLog(logData) {
 }
 
 
+
 // ==================================
-// AIアシスタント
+// AIアシスタント（画像対応版）
 // ==================================
 
 function setupAiAssistant() {
@@ -1196,7 +1197,13 @@ function setupAiAssistant() {
     return;
   }
 
-  // AIチャット画面
+  let selectedImage = null;
+  let selectedImageUrl = null;
+
+  // ==================================
+  // 画面作成
+  // ==================================
+
   const section = document.createElement("section");
   section.id = "aiAssistant";
 
@@ -1210,25 +1217,103 @@ function setupAiAssistant() {
 
   const description = document.createElement("p");
   description.textContent =
-    "水槽の管理や魚・水草について質問できます。";
+    "水槽の管理や魚・水草について質問できます。写真を添付して相談することもできます。";
 
+  // ==================================
   // 回答表示エリア
+  // ==================================
+
   const messages = document.createElement("div");
   messages.id = "aiMessages";
   messages.style.margin = "16px 0";
   messages.style.maxHeight = "400px";
   messages.style.overflowY = "auto";
 
+  // ==================================
   // 質問フォーム
+  // ==================================
+
   const form = document.createElement("form");
 
   const input = document.createElement("textarea");
   input.id = "aiMessageInput";
   input.placeholder = "水槽について質問してください";
-  input.required = true;
   input.rows = 3;
   input.style.width = "100%";
   input.style.boxSizing = "border-box";
+  input.style.marginBottom = "10px";
+
+  // ==================================
+  // 写真ライブラリ選択
+  // ==================================
+
+  const photoInput = document.createElement("input");
+  photoInput.type = "file";
+  photoInput.accept = "image/*";
+  photoInput.style.display = "none";
+
+  const photoLabel = document.createElement("label");
+  photoLabel.textContent = "写真を選択";
+  photoLabel.htmlFor = "aiPhotoInput";
+  photoLabel.style.display = "inline-block";
+  photoLabel.style.padding = "10px 14px";
+  photoLabel.style.marginRight = "8px";
+  photoLabel.style.marginBottom = "10px";
+  photoLabel.style.border = "1px solid #ccc";
+  photoLabel.style.borderRadius = "6px";
+  photoLabel.style.cursor = "pointer";
+
+  photoInput.id = "aiPhotoInput";
+
+  // ==================================
+  // カメラ撮影
+  // ==================================
+
+  const cameraInput = document.createElement("input");
+  cameraInput.type = "file";
+  cameraInput.accept = "image/*";
+  cameraInput.setAttribute("capture", "environment");
+  cameraInput.style.display = "none";
+  cameraInput.id = "aiCameraInput";
+
+  const cameraLabel = document.createElement("label");
+  cameraLabel.textContent = "カメラで撮影";
+  cameraLabel.htmlFor = "aiCameraInput";
+  cameraLabel.style.display = "inline-block";
+  cameraLabel.style.padding = "10px 14px";
+  cameraLabel.style.marginBottom = "10px";
+  cameraLabel.style.border = "1px solid #ccc";
+  cameraLabel.style.borderRadius = "6px";
+  cameraLabel.style.cursor = "pointer";
+
+  // ==================================
+  // 写真プレビュー
+  // ==================================
+
+  const previewArea = document.createElement("div");
+  previewArea.style.marginBottom = "12px";
+
+  const previewImage = document.createElement("img");
+  previewImage.style.display = "none";
+  previewImage.style.maxWidth = "180px";
+  previewImage.style.maxHeight = "180px";
+  previewImage.style.objectFit = "contain";
+  previewImage.style.borderRadius = "8px";
+
+  const removeImageButton = document.createElement("button");
+  removeImageButton.type = "button";
+  removeImageButton.textContent = "写真を取り消す";
+  removeImageButton.style.display = "none";
+  removeImageButton.style.marginLeft = "8px";
+
+  previewArea.append(
+    previewImage,
+    removeImageButton
+  );
+
+  // ==================================
+  // 送信ボタン
+  // ==================================
 
   const button = document.createElement("button");
   button.type = "submit";
@@ -1237,20 +1322,168 @@ function setupAiAssistant() {
   const status = document.createElement("p");
   status.id = "aiStatus";
 
-  form.append(input, button);
+  form.append(
+    input,
+    photoInput,
+    cameraInput,
+    photoLabel,
+    cameraLabel,
+    previewArea,
+    button,
+    status
+  );
 
   section.append(
     heading,
     description,
     messages,
-    form,
-    status
+    form
   );
 
   appPanel.appendChild(section);
 
+  // ==================================
+  // 画像形式の判定
+  // ==================================
+
+  function getImageMimeType(file) {
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/heic",
+      "image/heif"
+    ];
+
+    const fileType = file.type.toLowerCase();
+
+    if (allowedTypes.includes(fileType)) {
+      return fileType;
+    }
+
+    const extension = file.name
+      .split(".")
+      .pop()
+      .toLowerCase();
+
+    const extensionTypes = {
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      webp: "image/webp",
+      heic: "image/heic",
+      heif: "image/heif"
+    };
+
+    return extensionTypes[extension] || "";
+  }
+
+  // ==================================
+  // 写真選択処理
+  // ==================================
+
+  function handleImageSelection(file) {
+    if (!file) return;
+
+    const mimeType = getImageMimeType(file);
+
+    if (!mimeType) {
+      status.textContent =
+        "対応していない画像形式です。JPEG、PNG、WebP、HEIC、HEIFを選択してください。";
+      return;
+    }
+
+    // 画像サイズ上限：8MB
+    if (file.size > 8 * 1024 * 1024) {
+      status.textContent =
+        "画像サイズは8MB以内にしてください。";
+      return;
+    }
+
+    // 前のプレビューURLを解放
+    if (selectedImageUrl) {
+      URL.revokeObjectURL(selectedImageUrl);
+    }
+
+    selectedImage = file;
+    selectedImageUrl = URL.createObjectURL(file);
+
+    previewImage.src = selectedImageUrl;
+    previewImage.style.display = "block";
+    removeImageButton.style.display = "inline-block";
+
+    status.textContent =
+      "写真を選択しました。質問を入力して送信してください。";
+  }
+
+  photoInput.addEventListener("change", function() {
+    handleImageSelection(this.files[0]);
+    this.value = "";
+  });
+
+  cameraInput.addEventListener("change", function() {
+    handleImageSelection(this.files[0]);
+    this.value = "";
+  });
+
+  // ==================================
+  // 写真取り消し
+  // ==================================
+
+  removeImageButton.addEventListener("click", function() {
+    if (selectedImageUrl) {
+      URL.revokeObjectURL(selectedImageUrl);
+    }
+
+    selectedImage = null;
+    selectedImageUrl = null;
+
+    previewImage.src = "";
+    previewImage.style.display = "none";
+    removeImageButton.style.display = "none";
+
+    status.textContent = "写真を取り消しました。";
+  });
+
+  // ==================================
+  // Base64変換
+  // ==================================
+
+  function convertImageToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = function() {
+        const result = reader.result;
+
+        if (typeof result !== "string") {
+          reject(new Error("画像を読み取れませんでした。"));
+          return;
+        }
+
+        const base64 = result.split(",")[1];
+
+        if (!base64) {
+          reject(new Error("画像データを取得できませんでした。"));
+          return;
+        }
+
+        resolve(base64);
+      };
+
+      reader.onerror = function() {
+        reject(new Error("画像の読み込みに失敗しました。"));
+      };
+
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // ==================================
   // メッセージ表示
-  function addMessage(role, text) {
+  // ==================================
+
+  function addMessage(role, text, imageUrl = null) {
     const item = document.createElement("div");
 
     item.style.marginBottom = "14px";
@@ -1260,27 +1493,56 @@ function setupAiAssistant() {
       role === "user" ? "#eef5ff" : "#f2f2f2";
 
     const label = document.createElement("strong");
+
     label.textContent =
       role === "user" ? "あなた" : "AIアシスタント";
 
-    const content = document.createElement("p");
-    content.textContent = text;
-    content.style.whiteSpace = "pre-wrap";
-    content.style.marginBottom = "0";
+    item.appendChild(label);
 
-    item.append(label, content);
+    if (imageUrl) {
+      const image = document.createElement("img");
+
+      image.src = imageUrl;
+      image.style.display = "block";
+      image.style.maxWidth = "180px";
+      image.style.maxHeight = "180px";
+      image.style.objectFit = "contain";
+      image.style.marginTop = "8px";
+      image.style.borderRadius = "8px";
+
+      item.appendChild(image);
+    }
+
+    if (text) {
+      const content = document.createElement("p");
+
+      content.textContent = text;
+      content.style.whiteSpace = "pre-wrap";
+      content.style.marginBottom = "0";
+
+      item.appendChild(content);
+    }
+
     messages.appendChild(item);
-
     messages.scrollTop = messages.scrollHeight;
   }
 
+  // ==================================
   // AIへの質問送信
+  // ==================================
+
   form.addEventListener("submit", async function(event) {
     event.preventDefault();
 
     const message = input.value.trim();
+    const imageFile = selectedImage;
+    const imageUrl = selectedImageUrl;
 
-    if (!message) return;
+    if (!message && !imageFile) {
+      status.textContent =
+        "質問文を入力するか、写真を選択してください。";
+      return;
+    }
 
     if (!currentUser) {
       status.textContent = "ログインしてください。";
@@ -1289,24 +1551,42 @@ function setupAiAssistant() {
 
     button.disabled = true;
     input.disabled = true;
+    photoLabel.style.pointerEvents = "none";
+    cameraLabel.style.pointerEvents = "none";
+
     status.textContent = "AIが回答を作成しています...";
 
-    addMessage("user", message);
+    addMessage("user", message, imageUrl);
+
     input.value = "";
 
     try {
+      let imageBase64 = null;
+      let mimeType = null;
+
+      // 画像がある場合だけBase64に変換
+      if (imageFile) {
+        mimeType = getImageMimeType(imageFile);
+
+        imageBase64 =
+          await convertImageToBase64(imageFile);
+      }
+
       const { data, error } =
         await supabaseClient.functions.invoke(
           "aquarium-ai",
           {
             body: {
-              message: message
+              message: message,
+              imageBase64: imageBase64,
+              mimeType: mimeType
             }
           }
         );
 
       if (error) {
         console.error("AI通信エラー:", error);
+
         throw new Error(
           "AIとの通信に失敗しました。詳細はコンソールを確認してください。"
         );
@@ -1314,25 +1594,43 @@ function setupAiAssistant() {
 
       if (!data || !data.answer) {
         throw new Error(
-          data?.error || "AIから回答を取得できませんでした。"
+          data?.error ||
+          "AIから回答を取得できませんでした。"
         );
       }
 
       addMessage("ai", data.answer);
+
       status.textContent = "";
+
+      // 送信した写真を選択状態から解除
+      if (selectedImageUrl === imageUrl) {
+        selectedImage = null;
+        selectedImageUrl = null;
+
+        previewImage.src = "";
+        previewImage.style.display = "none";
+        removeImageButton.style.display = "none";
+      }
 
     } catch (error) {
       console.error("AIエラー:", error);
+
       status.textContent =
         "エラー：" + error.message;
 
     } finally {
       button.disabled = false;
       input.disabled = false;
+      photoLabel.style.pointerEvents = "auto";
+      cameraLabel.style.pointerEvents = "auto";
       input.focus();
     }
   });
 }
 
+// ==================================
 // AIチャット画面を初期化
+// ==================================
+
 setupAiAssistant();
