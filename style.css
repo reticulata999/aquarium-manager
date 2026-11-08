@@ -142,3 +142,36 @@ button:hover {
   overflow-y: auto;
   padding-right: 6px;
 }
+
+/* 水槽カード内の余白調整 */
+.tank-card p {
+  line-height: 1.7;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+/* 水槽内の構成項目 */
+.contents-section > div {
+  margin-bottom: 16px;
+}
+
+/* 各セクションの見出し */
+.tank-card h4 {
+  margin-top: 24px;
+  margin-bottom: 14px;
+}
+
+/* 変更履歴の各項目 */
+.content-logs-section .history-item {
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #ddd;
+}
+
+/* フォーム内の入力欄 */
+.tank-card input,
+.tank-card select,
+.tank-card button {
+  margin-top: 5px;
+  margin-bottom: 5px;
+}
