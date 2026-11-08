@@ -135,3 +135,10 @@ button:hover {
     align-self: flex-start;
   }
 }
+
+/* 構成変更履歴：3件分程度の高さでスクロール */
+.tank-content-logs {
+  max-height: 180px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
