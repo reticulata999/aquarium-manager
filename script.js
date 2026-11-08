@@ -161,6 +161,7 @@ async function loadData() {
   history = historyResult.data;
 
   render();
+await loadTankContents();
 }
 
 // ==================================
@@ -182,6 +183,7 @@ function render() {
   tanks.forEach(function(tank) {
     const card = document.createElement("div");
     card.className = "tank-card";
+    card.dataset.tankId = tank.id;
 
     const title = document.createElement("h3");
     title.textContent = tank.name;
@@ -309,3 +311,166 @@ document.getElementById("tankForm").addEventListener(
     button.disabled = false;
   }
 );
+
+
+// ==================================
+// 水槽内の構成管理
+// ==================================
+
+let tankContents = [];
+
+// 構成データ読み込み
+async function loadTankContents() {
+  if (!currentUser) return;
+
+  const { data, error } = await supabaseClient
+    .from("tank_contents")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("構成読み込みエラー:", error);
+    return;
+  }
+
+  tankContents = data || [];
+  renderTankContents();
+}
+
+// 構成データ表示
+function renderTankContents() {
+  tanks.forEach(function(tank) {
+    const card = Array.from(
+      document.querySelectorAll(".tank-card")
+    ).find(function(element) {
+      return element.dataset.tankId === tank.id;
+    });
+
+    if (!card) return;
+
+    let section = card.querySelector(".contents-section");
+
+    if (!section) {
+      section = document.createElement("div");
+      section.className = "contents-section";
+      card.appendChild(section);
+    }
+
+    section.replaceChildren();
+
+    const heading = document.createElement("h4");
+    heading.textContent = "水槽内の構成";
+
+    section.appendChild(heading);
+
+    const contents = tankContents.filter(function(item) {
+      return item.tank_id === tank.id;
+    });
+
+    if (contents.length === 0) {
+      const empty = document.createElement("p");
+      empty.textContent = "まだ登録されていません。";
+      section.appendChild(empty);
+    }
+
+    contents.forEach(function(item) {
+      const row = document.createElement("div");
+
+      const text = document.createElement("p");
+      text.textContent =
+        item.category + "｜" +
+        item.name + " × " +
+        item.quantity +
+        (item.memo ? "｜" + item.memo : "");
+
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.textContent = "削除";
+
+      deleteButton.addEventListener("click", async function() {
+        if (!confirm(item.name + "を削除しますか？")) return;
+
+        const { error } = await supabaseClient
+          .from("tank_contents")
+          .delete()
+          .eq("id", item.id);
+
+        if (error) {
+          alert("削除エラー：" + error.message);
+          return;
+        }
+
+        await loadTankContents();
+      });
+
+      row.append(text, deleteButton);
+      section.appendChild(row);
+    });
+
+    // 登録フォーム
+    const form = document.createElement("form");
+
+    const category = document.createElement("select");
+
+    ["生体", "水草", "機材", "底床・その他"].forEach(function(value) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = value;
+      category.appendChild(option);
+    });
+
+    const name = document.createElement("input");
+    name.placeholder = "名前";
+    name.required = true;
+
+    const quantity = document.createElement("input");
+    quantity.type = "number";
+    quantity.min = "1";
+    quantity.step = "1";
+    quantity.value = "1";
+    quantity.required = true;
+
+    const memo = document.createElement("input");
+    memo.placeholder = "メモ（任意）";
+
+    const button = document.createElement("button");
+    button.type = "submit";
+    button.textContent = "構成を追加";
+
+    form.append(category, name, quantity, memo, button);
+
+    form.addEventListener("submit", async function(event) {
+      event.preventDefault();
+
+      const count = Number(quantity.value);
+
+      if (!Number.isInteger(count) || count < 1) {
+        alert("数量は1以上の整数で入力してください。");
+        return;
+      }
+
+      button.disabled = true;
+
+      const { error } = await supabaseClient
+        .from("tank_contents")
+        .insert({
+          tank_id: tank.id,
+          user_id: currentUser.id,
+          category: category.value,
+          name: name.value.trim(),
+          quantity: count,
+          memo: memo.value.trim()
+        });
+
+      if (error) {
+        alert("登録エラー：" + error.message);
+      } else {
+        await loadTankContents();
+      }
+
+      button.disabled = false;
+    });
+
+    section.appendChild(form);
+  });
+}
