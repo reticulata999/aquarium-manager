@@ -1183,3 +1183,156 @@ async function saveTankContentLog(logData) {
 
   return true;
 }
+
+
+// ==================================
+// AIアシスタント
+// ==================================
+
+function setupAiAssistant() {
+  const appPanel = document.getElementById("appPanel");
+
+  if (!appPanel || document.getElementById("aiAssistant")) {
+    return;
+  }
+
+  // AIチャット画面
+  const section = document.createElement("section");
+  section.id = "aiAssistant";
+
+  section.style.marginTop = "30px";
+  section.style.padding = "16px";
+  section.style.border = "1px solid #ddd";
+  section.style.borderRadius = "10px";
+
+  const heading = document.createElement("h3");
+  heading.textContent = "AI水槽アシスタント";
+
+  const description = document.createElement("p");
+  description.textContent =
+    "水槽の管理や魚・水草について質問できます。";
+
+  // 回答表示エリア
+  const messages = document.createElement("div");
+  messages.id = "aiMessages";
+  messages.style.margin = "16px 0";
+  messages.style.maxHeight = "400px";
+  messages.style.overflowY = "auto";
+
+  // 質問フォーム
+  const form = document.createElement("form");
+
+  const input = document.createElement("textarea");
+  input.id = "aiMessageInput";
+  input.placeholder = "水槽について質問してください";
+  input.required = true;
+  input.rows = 3;
+  input.style.width = "100%";
+  input.style.boxSizing = "border-box";
+
+  const button = document.createElement("button");
+  button.type = "submit";
+  button.textContent = "AIに質問する";
+
+  const status = document.createElement("p");
+  status.id = "aiStatus";
+
+  form.append(input, button);
+
+  section.append(
+    heading,
+    description,
+    messages,
+    form,
+    status
+  );
+
+  appPanel.appendChild(section);
+
+  // メッセージ表示
+  function addMessage(role, text) {
+    const item = document.createElement("div");
+
+    item.style.marginBottom = "14px";
+    item.style.padding = "10px";
+    item.style.borderRadius = "8px";
+    item.style.background =
+      role === "user" ? "#eef5ff" : "#f2f2f2";
+
+    const label = document.createElement("strong");
+    label.textContent =
+      role === "user" ? "あなた" : "AIアシスタント";
+
+    const content = document.createElement("p");
+    content.textContent = text;
+    content.style.whiteSpace = "pre-wrap";
+    content.style.marginBottom = "0";
+
+    item.append(label, content);
+    messages.appendChild(item);
+
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  // AIへの質問送信
+  form.addEventListener("submit", async function(event) {
+    event.preventDefault();
+
+    const message = input.value.trim();
+
+    if (!message) return;
+
+    if (!currentUser) {
+      status.textContent = "ログインしてください。";
+      return;
+    }
+
+    button.disabled = true;
+    input.disabled = true;
+    status.textContent = "AIが回答を作成しています...";
+
+    addMessage("user", message);
+    input.value = "";
+
+    try {
+      const { data, error } =
+        await supabaseClient.functions.invoke(
+          "aquarium-ai",
+          {
+            body: {
+              message: message
+            }
+          }
+        );
+
+      if (error) {
+        console.error("AI通信エラー:", error);
+        throw new Error(
+          "AIとの通信に失敗しました。詳細はコンソールを確認してください。"
+        );
+      }
+
+      if (!data || !data.answer) {
+        throw new Error(
+          data?.error || "AIから回答を取得できませんでした。"
+        );
+      }
+
+      addMessage("ai", data.answer);
+      status.textContent = "";
+
+    } catch (error) {
+      console.error("AIエラー:", error);
+      status.textContent =
+        "エラー：" + error.message;
+
+    } finally {
+      button.disabled = false;
+      input.disabled = false;
+      input.focus();
+    }
+  });
+}
+
+// AIチャット画面を初期化
+setupAiAssistant();
