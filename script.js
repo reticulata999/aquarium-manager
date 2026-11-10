@@ -21,6 +21,7 @@ let tankContents = [];
 let tankPhotos = [];
 let tankContentLogs = [];
 let currentUser = null;
+let aiConversationHistory = [];
 
 
 // ==================================
@@ -62,6 +63,7 @@ async function handleSession(session) {
     tankContents = [];
     tankPhotos = [];
     tankContentLogs = [];
+    aiConversationHistory = [];
   }
 }
 
@@ -408,6 +410,43 @@ async function loadTankContents() {
 }
 
 // ==================================
+// AIに渡す登録済み水槽データ
+// ==================================
+
+function buildAiTankData() {
+  return tanks.map(function(tank) {
+    return {
+      name: tank.name,
+      volume: tank.volume,
+      contents: tankContents
+        .filter(function(item) {
+          return item.tank_id === tank.id;
+        })
+        .map(function(item) {
+          return {
+            category: item.category,
+            name: item.name,
+            quantity: item.quantity,
+            memo: item.memo || ""
+          };
+        }),
+      recentWaterChanges: history
+        .filter(function(record) {
+          return record.tank_id === tank.id;
+        })
+        .slice(0, 10)
+        .map(function(record) {
+          return {
+            date: record.changed_at,
+            amount: record.amount
+          };
+        })
+    };
+  });
+}
+
+
+// ==================================
 // 水槽データのAI自動分析
 // ==================================
 
@@ -481,7 +520,8 @@ async function analyzeTank(tank, resultArea, button) {
         "aquarium-ai",
         {
           body: {
-            message: message
+            message: message,
+            tankData: [tankData]
           }
         }
       );
@@ -531,7 +571,7 @@ function renderTankContents() {
 
     section.replaceChildren();
 
-    
+
 // 見出し
 const heading = document.createElement("h4");
 heading.textContent = "水槽内の構成";
@@ -858,7 +898,7 @@ async function loadTankPhotos() {
   if (error) {
     console.error("写真読み込みエラー:", error);
     alert("写真データの読み込みに失敗しました。");
-    return;
+        return;
   }
 
   tankPhotos = data || [];
@@ -1311,6 +1351,11 @@ async function saveTankContentLog(logData) {
     return false;
   }
 
+  return true;
+}
+    return false;
+  }
+
   await loadTankContentLogs();
 
   return true;
@@ -1682,6 +1727,8 @@ function setupAiAssistant() {
           {
             body: {
               message: message,
+              history: aiConversationHistory,
+              tankData: buildAiTankData(),
               imageBase64: imageBase64,
               mimeType: mimeType
             }
@@ -1704,6 +1751,21 @@ function setupAiAssistant() {
       }
 
       addMessage("ai", data.answer);
+
+      // 成功した会話だけ履歴に保存（画像データ自体は保存しない）
+      aiConversationHistory.push(
+        {
+          role: "user",
+          text: message || "水槽の写真を送信しました。"
+        },
+        {
+          role: "model",
+          text: data.answer
+        }
+      );
+
+      // 直近20メッセージだけ保持
+      aiConversationHistory = aiConversationHistory.slice(-20);
 
       status.textContent = "";
 
