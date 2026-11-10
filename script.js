@@ -1682,6 +1682,7 @@ function setupAiAssistant() {
           {
             body: {
               message: message,
+              tankData: buildAiTankData(),
               imageBase64: imageBase64,
               mimeType: mimeType
             }
@@ -1729,6 +1730,44 @@ function setupAiAssistant() {
       photoLabel.style.pointerEvents = "auto";
       input.focus();
     }
+  });
+}
+
+// ==================================
+// AIに渡す水槽登録情報を作成
+// ==================================
+
+function buildAiTankData() {
+  return tanks.map(function(tank) {
+    return {
+      水槽名: tank.name,
+      水量: tank.volume + " L",
+
+      登録済み構成: tankContents
+        .filter(function(item) {
+          return item.tank_id === tank.id;
+        })
+        .map(function(item) {
+          return {
+            分類: item.category,
+            名前: item.name,
+            数量: item.quantity,
+            メモ: item.memo || "なし"
+          };
+        }),
+
+      直近の水換え履歴: history
+        .filter(function(record) {
+          return record.tank_id === tank.id;
+        })
+        .slice(0, 10)
+        .map(function(record) {
+          return {
+            日時: new Date(record.changed_at).toLocaleString("ja-JP"),
+            換水量: record.amount + " L"
+          };
+        })
+    };
   });
 }
 
